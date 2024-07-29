@@ -1,5 +1,4 @@
 import { decodeAbiParameters, hexToBytes } from 'viem'
-import brotli from '../utils/module-loaders/brotli-wasm.cjs';
 
 /**
  * ERC-5219 mode, as introduced via ERC-6944
@@ -114,43 +113,6 @@ function processResourceRequestContractReturn(client, fetchedUrl, contractReturn
     // Gzip support
     if(fetchedUrl.httpHeaders[lowerCaseHeaderNames['content-encoding']] == "gzip") {
       const decompressionStream = new DecompressionStream("gzip");
-      fetchedUrl.output = fetchedUrl.output.pipeThrough(decompressionStream);
-
-      // Remove the content-encoding header
-      delete fetchedUrl.httpHeaders[lowerCaseHeaderNames['content-encoding']];
-    }
-    // Brotli support
-    else if(fetchedUrl.httpHeaders[lowerCaseHeaderNames['content-encoding']] == "br") {
-      // brotli support in DecompressionStream should happen in the future
-      // cf https://github.com/WICG/compression/issues/34
-      // Meanwhile, we use the brotli-wasm library
-      const decompressStream = new brotli.DecompressStream();
-      const decompressionStream = new TransformStream({
-          transform(chunk, controller) {
-              let resultCode;
-              let inputOffset = 0;
-      
-              // Decompress this chunk, producing up to OUTPUT_SIZE output bytes at a time, until the
-              // entire input has been decompressed.
-      
-              do {
-                  const input = chunk.slice(inputOffset);
-                  const result = decompressStream.decompress(input, 1024 * 1024);
-                  controller.enqueue(result.buf);
-                  resultCode = result.code;
-                  inputOffset += result.input_offset;
-              } while (resultCode === brotli.BrotliStreamResultCode.NeedsMoreOutput);
-              if (
-                  resultCode !== brotli.BrotliStreamResultCode.NeedsMoreInput &&
-                  resultCode !== brotli.BrotliStreamResultCode.ResultSuccess
-              ) {
-                  controller.error(`Brotli decompression failed with code ${resultCode}`)
-              }
-          },
-          flush(controller) {
-              controller.terminate();
-          }
-      });
       fetchedUrl.output = fetchedUrl.output.pipeThrough(decompressionStream);
 
       // Remove the content-encoding header
